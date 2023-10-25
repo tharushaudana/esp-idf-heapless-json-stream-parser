@@ -55,14 +55,16 @@ class json_stream_parser
 private:
     on_stream_data_cb_t _cb_data;
 
-    uint8_t _act = ACT_FIND_VAL;
-
-    uint8_t _ptype = JSON_PTYPE_OBJ;
-
-    json_key_t _key;
-    json_val_t _val;
-
-    int8_t _depth = -1;
+    // current action
+    uint8_t _act = ACT_FIND_VAL; 
+    // current parent type (object or array)
+    uint8_t _ptype = JSON_PTYPE_OBJ; 
+    // current key
+    json_key_t _key; 
+    // current value
+    json_val_t _val; 
+    // current depth
+    int8_t _depth = -1; 
 
     void _notify_data();
 
