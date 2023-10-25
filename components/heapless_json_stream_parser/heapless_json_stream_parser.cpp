@@ -1,67 +1,8 @@
-#include <stdio.h>
 #include "heapless_json_stream_parser.h"
-
-struct path_t
-{
-    json_key_t keys[20];
-    int n_keys = 0;
-
-    void up(json_key_t k)
-    {
-        if (k.key.length() == 0) return;
-        keys[n_keys++] = k;
-    }
-
-    void down()
-    {
-        n_keys--;
-    }
-
-    json_key_t* lkey()
-    {
-        if (n_keys == 0) return nullptr;
-        return &keys[n_keys - 1];
-    }
-
-    std::string k_to_str(json_key_t k) 
-    {
-        if (k.type == JSON_KEY_TYPE_OBJ)
-            return k.key;
-        else 
-            return "[" + k.key + "]";
-    }
-
-    std::string to_str(json_key_t suffix_key)
-    {
-        std::string str = "";
-
-        for (uint8_t i = 0; i < n_keys; i++)
-        {
-            json_key_t k = keys[i];
-
-            str += k_to_str(k);
-
-            if (i < n_keys - 1)
-            {
-                str += "/";
-            }
-        }
-
-        if (suffix_key.key.length() > 0)
-        {
-            if (str.length() > 0) str += "/";
-            str += k_to_str(suffix_key);
-        }
-
-        return str;
-    }
-};
-
-path_t _path;
 
 /*###########################################################################*/
 
-json_stream_parser::json_stream_parser(on_stream_data_cb_t cb)
+json_stream_parser::json_stream_parser(on_json_stream_data_cb_t cb)
 {
     _cb_data = cb;
 }
@@ -80,7 +21,7 @@ void json_stream_parser::_step_up_path() {
 }
 
 void json_stream_parser::_step_down_path() {
-    json_key_t *lkey = _path.lkey();
+    json_key_t lkey = _path.lkey();
 
     _depth--;
     _path.down();
@@ -89,18 +30,18 @@ void json_stream_parser::_step_down_path() {
 
     if (_path.n_keys == 0) {
         _set_current_ptype(JSON_PTYPE_OBJ);
-        _sa(ACT_FIND_KEY);
+        _sa(JSON_ACT_FIND_KEY);
         _key.key = "";
         return;
     }
 
-    if (lkey != nullptr && lkey->type == JSON_KEY_TYPE_ARR) {
+    if (!lkey.is_empty() && lkey.type == JSON_KEY_TYPE_ARR) {
         _set_current_ptype(JSON_PTYPE_ARR);
-        _sa(ACT_FIND_VAL);
-        _key = *lkey;
+        _sa(JSON_ACT_FIND_VAL);
+        _key = lkey;
     } else {
         _set_current_ptype(JSON_PTYPE_OBJ);
-        _sa(ACT_FIND_KEY);
+        _sa(JSON_ACT_FIND_KEY);
     }
 }
 
@@ -154,7 +95,7 @@ bool json_stream_parser::_find_value(char c)
         return false;
     }
 
-    _sa(ACT_READ_VAL);
+    _sa(JSON_ACT_READ_VAL);
 
     return true;
 }
@@ -206,14 +147,19 @@ void json_stream_parser::_sa(int8_t a) {
     _act = a;
 }
 
+void json_stream_parser::_reset() {
+    printf("dsdsd");
+    _path.prefix_path_str.clear();
+}
+
 void json_stream_parser::parse(char c)
 {
-    if (_act == ACT_FIND_VAL)
+    if (_act == JSON_ACT_FIND_VAL)
     {
         if (c == '{')
         {
             _set_current_ptype(JSON_PTYPE_OBJ);
-            _sa(ACT_FIND_KEY);
+            _sa(JSON_ACT_FIND_KEY);
             _step_up_path();
             return;
         }
@@ -221,7 +167,7 @@ void json_stream_parser::parse(char c)
         {
             _step_up_path();
             _set_current_ptype(JSON_PTYPE_ARR);
-            _sa(ACT_FIND_VAL);
+            _sa(JSON_ACT_FIND_VAL);
             _set_arr_key();
             return;
         }
@@ -232,36 +178,38 @@ void json_stream_parser::parse(char c)
             if (_depth == -1) 
             {
                 //... end
+                _reset();
                 return;
             }
 
             return;
         }
     }
-    else if (_act == ACT_FIND_KEY && c == '}')
+    else if (_act == JSON_ACT_FIND_KEY && c == '}')
     {
         _step_down_path();
 
         if (_depth == -1) 
         {
             //... end
+            _reset();
             return;
         }
 
         return;
     }
     
-    if  (_act == ACT_FIND_KEY && c == '"') 
+    if  (_act == JSON_ACT_FIND_KEY && c == '"') 
     {
         _clear_current_key();
-        _sa(ACT_READ_KEY);
+        _sa(JSON_ACT_READ_KEY);
         return;
     }
 
-    if (_act == ACT_READ_KEY) {
+    if (_act == JSON_ACT_READ_KEY) {
         if (c == '"') 
         {
-            _sa(ACT_FIND_COL);
+            _sa(JSON_ACT_FIND_COL);
         }
         else 
         {   
@@ -270,13 +218,13 @@ void json_stream_parser::parse(char c)
         return;
     }
 
-    if (_act == ACT_FIND_COL && c == ':') 
+    if (_act == JSON_ACT_FIND_COL && c == ':') 
     {
-        _sa(ACT_FIND_VAL);
+        _sa(JSON_ACT_FIND_VAL);
         return;
     }
 
-    if (_act == ACT_FIND_VAL) 
+    if (_act == JSON_ACT_FIND_VAL) 
     {
         if (_ptype == JSON_PTYPE_ARR && c == ',') 
         {
@@ -287,16 +235,22 @@ void json_stream_parser::parse(char c)
         return;
     }
 
-    if (_act == ACT_READ_VAL) 
+    if (_act == JSON_ACT_READ_VAL) 
     {
         if (_read_value(c)) 
         {
             if (_ptype == JSON_PTYPE_OBJ)
-                _sa(ACT_FIND_KEY);
+                _sa(JSON_ACT_FIND_KEY);
             else if (_ptype == JSON_PTYPE_ARR)
-                _sa(ACT_FIND_VAL);
+                _sa(JSON_ACT_FIND_VAL);
             _notify_data();
         }
         return;
     }
+}
+
+void json_stream_parser::set_prefix_path(std::string p) 
+{
+    _path.prefix_path_str.clear();
+    _path.prefix_path_str.append(p);
 }

@@ -15,7 +15,34 @@
 #include "lwip/err.h"
 #include "lwip/sys.h"
 
+#include "event_source_stream_parser.h"
 #include "heapless_json_stream_parser.h"
+
+/*
+const char* json_str = R"(
+{
+    "k1" : "v1",
+    "k2": "v2",
+    "o1": {
+        "k3": "v3",
+        "o2": {
+            "k4": "v4"
+        }
+    },
+    "a1": [
+        "matara", "galle", "hamban"
+    ],
+    "a2": [
+        {"k1": "v1", "k2": "v2"},
+        {"k2": "v2", "k3": "v3", "k4": ["a", "b", {"k5":"v5"}]}
+    ],
+    "a3": [
+        ["a", "b"],
+        ["c", "d"]
+    ]
+}
+)";
+*/
 
 const char* json_str = R"(
 {
@@ -30,13 +57,43 @@ const char* json_str = R"(
 }
 )";
 
+const char* event_source_str = R"(
+event: patch
+data: {"path": "/c", "data": {"foo": 3, "baz": 5}}
+
+event: put
+data: {"path": "/", "data": {"a": 1, "b": 2}}
+
+event: put
+data: {"path": "/c", "data": {"foo": true, "bar": false}}
+
+event: patch
+data: {"path": "/c", "data": {"foo": 3, "baz": 4}}
+
+event: patch
+data: {"path": "/c", "data": {"foo": 3, "baz": 5}}
+)";
+
 json_stream_parser jparser([](std::string path, json_val_t value) {
     ESP_LOGI("TAG", "%s >>> %s", path.c_str(), value.val.c_str());
-    if (path == "idToken") {
+
+    /*if (path == "idToken") {
         std::string e;
         value.get_value(e);
         ESP_LOGI("TAGG", "expiresIn --> %s", e.c_str());
+    }*/
+
+    if (path == "/path")
+    {
+        jparser.set_prefix_path(value.val);
     }
+});
+
+event_source_stream_parser eparser("event", "data", [](std::string event) -> on_evts_data_char_cb_t {
+    ESP_LOGI("TAG", "EVENT: %s", event.c_str());
+    return [&](char c) {
+        jparser.parse(c);
+    };
 });
 
 extern "C" void app_main(void)
@@ -48,6 +105,7 @@ extern "C" void app_main(void)
     }
     ESP_ERROR_CHECK(ret);
 
+    /*
     size_t s = strlen(json_str);
     int i = 0;
 
@@ -56,11 +114,14 @@ extern "C" void app_main(void)
         jparser.parse(json_str[i]);
         i++;
     }
+    */
 
-    /*for (int i = 0; i < sizeof(json_str); i++)
+    size_t s = strlen(event_source_str);
+    int i = 0;
+
+    while (i < s)
     {
-        
-        //jparser.parse(json_str[i]);
-    }*/
-    
+        eparser.parse(event_source_str[i]);
+        i++;
+    }
 }
