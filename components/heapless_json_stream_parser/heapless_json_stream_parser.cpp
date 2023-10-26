@@ -5,10 +5,34 @@
 json_stream_parser::json_stream_parser(on_json_stream_data_cb_t cb)
 {
     _cb_data = cb;
+    _use_cb = true;
+}
+
+json_stream_parser::json_stream_parser()
+{
+    _use_cb = false;
+}
+
+void json_stream_parser::reset() {
+    _act = JSON_ACT_FIND_VAL;
+    _ptype = JSON_PTYPE_OBJ;
+    _path.clear();
+}
+
+void json_stream_parser::set_prefix_path(std::string p) 
+{
+    _path.set_prefix_path(p);
 }
 
 void json_stream_parser::_notify_data() {
-    _cb_data(_path.to_str(_key), _val);
+    path = _path.to_str(_key);
+    value.val = _val.val;
+    value.type = _val.type;
+
+    if (_use_cb)
+    {
+        _cb_data(path, value);
+    }
 }
 
 void json_stream_parser::_set_current_ptype(int8_t t) {
@@ -24,6 +48,13 @@ void json_stream_parser::_step_down_path() {
     json_key_t lkey = _path.lkey();
 
     _depth--;
+
+    if (_depth == -1)
+    {   
+        reset();
+        return;
+    }
+
     _path.down();
 
     //### set data of previous parent
@@ -147,12 +178,7 @@ void json_stream_parser::_sa(int8_t a) {
     _act = a;
 }
 
-void json_stream_parser::_reset() {
-    printf("dsdsd");
-    _path.prefix_path_str.clear();
-}
-
-void json_stream_parser::parse(char c)
+bool json_stream_parser::parse(char c)
 {
     if (_act == JSON_ACT_FIND_VAL)
     {
@@ -161,7 +187,7 @@ void json_stream_parser::parse(char c)
             _set_current_ptype(JSON_PTYPE_OBJ);
             _sa(JSON_ACT_FIND_KEY);
             _step_up_path();
-            return;
+            return false;
         }
         else if (c == '[')
         {
@@ -169,41 +195,26 @@ void json_stream_parser::parse(char c)
             _set_current_ptype(JSON_PTYPE_ARR);
             _sa(JSON_ACT_FIND_VAL);
             _set_arr_key();
-            return;
+            return false;
         }
         else if (c == ']')
         {
             _step_down_path();
-
-            if (_depth == -1) 
-            {
-                //... end
-                _reset();
-                return;
-            }
-
-            return;
+            return false;
         }
     }
-    else if (_act == JSON_ACT_FIND_KEY && c == '}')
+
+    if (_act == JSON_ACT_FIND_KEY && c == '}')
     {
         _step_down_path();
-
-        if (_depth == -1) 
-        {
-            //... end
-            _reset();
-            return;
-        }
-
-        return;
+        return false;
     }
     
     if  (_act == JSON_ACT_FIND_KEY && c == '"') 
     {
         _clear_current_key();
         _sa(JSON_ACT_READ_KEY);
-        return;
+        return false;
     }
 
     if (_act == JSON_ACT_READ_KEY) {
@@ -215,13 +226,14 @@ void json_stream_parser::parse(char c)
         {   
             _append_current_key(c);
         }
-        return;
+
+        return false;
     }
 
     if (_act == JSON_ACT_FIND_COL && c == ':') 
     {
         _sa(JSON_ACT_FIND_VAL);
-        return;
+        return false;
     }
 
     if (_act == JSON_ACT_FIND_VAL) 
@@ -229,10 +241,12 @@ void json_stream_parser::parse(char c)
         if (_ptype == JSON_PTYPE_ARR && c == ',') 
         {
             _increase_arr_key();
-            return;
+            return false;
         }
+        
         _find_value(c);
-        return;
+
+        return false;
     }
 
     if (_act == JSON_ACT_READ_VAL) 
@@ -243,14 +257,25 @@ void json_stream_parser::parse(char c)
                 _sa(JSON_ACT_FIND_KEY);
             else if (_ptype == JSON_PTYPE_ARR)
                 _sa(JSON_ACT_FIND_VAL);
-            _notify_data();
-        }
-        return;
-    }
-}
 
-void json_stream_parser::set_prefix_path(std::string p) 
-{
-    _path.prefix_path_str.clear();
-    _path.prefix_path_str.append(p);
+            _notify_data();
+
+            //########### (these are for handle for numeric values)
+            if (c == '}' || c == ']')
+            {
+                _step_down_path();       
+            } 
+            else if (c == ',' && _ptype == JSON_PTYPE_ARR) 
+            {
+                _increase_arr_key();
+            }   
+            //###########
+
+            return true;
+        }
+
+        return false;
+    }
+
+    return false;
 }

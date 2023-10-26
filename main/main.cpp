@@ -18,8 +18,8 @@
 #include "event_source_stream_parser.h"
 #include "heapless_json_stream_parser.h"
 
-/*
-const char* json_str = R"(
+
+/*const char* json_str = R"(
 {
     "k1" : "v1",
     "k2": "v2",
@@ -38,11 +38,12 @@ const char* json_str = R"(
     ],
     "a3": [
         ["a", "b"],
-        ["c", "d"]
+        ["c", "d"],
+        [10, 20, 30, [40,50,60]],
     ]
 }
-)";
-*/
+)";*/
+
 
 const char* json_str = R"(
 {
@@ -77,11 +78,11 @@ data: {"path": "/c", "data": {"foo": 3, "baz": 5}}
 json_stream_parser jparser([](std::string path, json_val_t value) {
     ESP_LOGI("TAG", "%s >>> %s", path.c_str(), value.val.c_str());
 
-    /*if (path == "idToken") {
-        std::string e;
-        value.get_value(e);
-        ESP_LOGI("TAGG", "expiresIn --> %s", e.c_str());
-    }*/
+    //if (path == "/idToken") {
+    //    std::string e;
+    //    value.get_value(e);
+    //    ESP_LOGI("TAGG", "expiresIn --> %s", e.c_str());
+    //}
 
     if (path == "/path")
     {
@@ -96,6 +97,9 @@ event_source_stream_parser eparser("event", "data", [](std::string event) -> on_
     };
 });
 
+//json_stream_parser jparser;
+//event_source_stream_parser eparser("event", "data");
+
 extern "C" void app_main(void)
 {
     esp_err_t ret = nvs_flash_init();
@@ -105,16 +109,15 @@ extern "C" void app_main(void)
     }
     ESP_ERROR_CHECK(ret);
 
-    /*
-    size_t s = strlen(json_str);
+    
+    /*size_t s = strlen(json_str);
     int i = 0;
 
     while (i < s)
     {
         jparser.parse(json_str[i]);
         i++;
-    }
-    */
+    }*/
 
     size_t s = strlen(event_source_str);
     int i = 0;
@@ -122,6 +125,20 @@ extern "C" void app_main(void)
     while (i < s)
     {
         eparser.parse(event_source_str[i]);
+
+        /*if (eparser.parse(event_source_str[i]))
+        {
+            if (jparser.parse(eparser.data))
+            {
+                ESP_LOGI(eparser.event.c_str(), "%s >>> %s", jparser.path.c_str(), jparser.value.val.c_str());
+
+                if (jparser.path == "/path")
+                {
+                    jparser.set_prefix_path(jparser.value.val);
+                }
+            }
+        }*/
+
         i++;
     }
 }

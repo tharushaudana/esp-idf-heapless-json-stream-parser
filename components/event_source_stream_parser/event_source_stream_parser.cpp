@@ -5,16 +5,27 @@ event_source_stream_parser::event_source_stream_parser(std::string event_key, st
     _cb_stream = cb;
     _event_key = event_key;
     _data_key = data_key;
+    _use_cb = true;
+}
+
+event_source_stream_parser::event_source_stream_parser(std::string event_key, std::string data_key)
+{
+    _event_key = event_key;
+    _data_key = data_key;
+    _use_cb = false;
 }
 
 void event_source_stream_parser::_notify_event() 
 {
+    event = _current_event;
+    if (!_use_cb) return;
     _cb_char = _cb_stream(_current_event);
 }
 
 void event_source_stream_parser::_notify_data_char(char c) 
 {
-    _cb_char(c);
+    data = c;
+    if (_use_cb) _cb_char(c);
 }
 
 void event_source_stream_parser::_clear_current_event_key() 
@@ -62,7 +73,7 @@ void event_source_stream_parser::_sa(int8_t a)
     _act = a;
 }
 
-void event_source_stream_parser::parse(char c) 
+bool event_source_stream_parser::parse(char c) 
 {
     if (_act == EVTS_ACT_FIND_EVENT && c != ' ' && c != '\n')
     {
@@ -80,7 +91,7 @@ void event_source_stream_parser::parse(char c)
             _append_current_event_key(c);
         }
 
-        return;
+        return false;
     }
 
     if (_act == EVTS_ACT_READ_EVENT && c != ' ')
@@ -95,7 +106,7 @@ void event_source_stream_parser::parse(char c)
             _append_current_event(c);
         }
 
-        return;
+        return false;
     }
 
     if (_act == EVTS_ACT_FIND_DATA && c != ' ' && c != '\n')
@@ -117,7 +128,7 @@ void event_source_stream_parser::parse(char c)
             _append_current_data_key(c);
         }
 
-        return;
+        return false;
     }
 
     if (_act == EVTS_ACT_READ_DATA && c != ' ')
@@ -129,10 +140,11 @@ void event_source_stream_parser::parse(char c)
         else 
         {
             _notify_data_char(c);
+            return true;
         }
         
-        return;
+        return false;
     }
 
-    return;
+    return false;
 }

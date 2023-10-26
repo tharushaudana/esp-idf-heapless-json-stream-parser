@@ -151,6 +151,19 @@ struct path_t
 
     std::string prefix_path_str = "";
 
+    void clear()
+    {
+        n_keys = 0;
+        keys.clear();
+        prefix_path_str.clear();
+    }
+
+    void set_prefix_path(std::string s)
+    {
+        if (s == "/") return;
+        prefix_path_str = s;
+    }
+
     void up(json_key_t k)
     {
         if (k.key.length() == 0 || n_keys >= 20) return;
@@ -261,6 +274,8 @@ private:
 
     path_t _path;
 
+    bool _use_cb = false;
+
     void _notify_data();
 
     void _set_current_ptype(int8_t t);
@@ -275,11 +290,16 @@ private:
     void _sa(int8_t a);
     bool _find_value(char c);
     bool _read_value(char c);
-
-    void _reset();
 public:
     json_stream_parser(on_json_stream_data_cb_t cb);
-    void parse(char c);
+    json_stream_parser();
+
+    // these are when not using callback function
+    std::string path;
+    json_val_t value;
+
+    bool parse(char c);
     void set_prefix_path(std::string p);
+    void reset();
 };
 

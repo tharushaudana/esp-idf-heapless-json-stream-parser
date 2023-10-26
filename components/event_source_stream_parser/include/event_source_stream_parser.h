@@ -31,6 +31,8 @@ private:
 
     std::string _current_event;
 
+    bool _use_cb = false;
+
     void _notify_event();
     void _notify_data_char(char c);
 
@@ -45,5 +47,10 @@ private:
     void _sa(int8_t a);
 public:
     event_source_stream_parser(std::string event_key, std::string data_key, on_evts_stream_data_cb_t cb);
-    void parse(char c);
+    event_source_stream_parser(std::string event_key, std::string data_key);
+
+    std::string event;
+    char data;
+
+    bool parse(char c);
 };
