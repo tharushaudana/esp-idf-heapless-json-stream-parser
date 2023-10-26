@@ -149,19 +149,22 @@ struct path_t
     int16_t key_ends[20];
     std::string keys = "";
 
-    std::string prefix_path_str = "";
+    std::string old_prefix_path_str = "";
+    std::string new_prefix_path_str = "";
 
     void clear()
     {
         n_keys = 0;
         keys.clear();
-        prefix_path_str.clear();
+        old_prefix_path_str.clear();
+        new_prefix_path_str.clear();
     }
 
-    void set_prefix_path(std::string s)
+    void replace_prefix_path(std::string old_p, std::string new_p)
     {
-        if (s == "/") return;
-        prefix_path_str = s;
+        if (old_p == "/") return;
+        old_prefix_path_str = old_p;
+        new_prefix_path_str = new_p;
     }
 
     void up(json_key_t k)
@@ -236,12 +239,31 @@ struct path_t
     {
         std::string str = "";
 
+        bool prefix_replaced = false;
+
         for (uint8_t i = 0; i < n_keys; i++)
         {
             json_key_t k = key_at(i);
 
             str += "/";
             str += k.to_str();
+
+            if (!prefix_replaced && old_prefix_path_str.length() > 0)
+            {
+                if (str == old_prefix_path_str)
+                {
+                    if (new_prefix_path_str == "/")
+                    {
+                        str = "";
+                    }
+                    else 
+                    {
+                        str = new_prefix_path_str;
+                    }
+
+                    prefix_replaced = true;
+                }
+            }
         }
 
         if (!suffix_key.is_empty())
@@ -250,7 +272,7 @@ struct path_t
             str += suffix_key.to_str();
         }
 
-        return prefix_path_str + str;
+        return str;
     }
 };
 
@@ -299,7 +321,7 @@ public:
     json_val_t value;
 
     bool parse(char c);
-    void set_prefix_path(std::string p);
+    void replace_prefix_path(std::string old_p, std::string new_p);
     void reset();
 };
 

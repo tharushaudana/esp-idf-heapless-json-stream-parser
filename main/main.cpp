@@ -86,7 +86,7 @@ json_stream_parser jparser([](std::string path, json_val_t value) {
 
     if (path == "/path")
     {
-        jparser.set_prefix_path(value.val);
+        jparser.replace_prefix_path("/data", value.val);
     }
 });
 
